@@ -1,0 +1,90 @@
+name: "Create repository from template action"
+description: "Creates a new GitHub repository from a template"
+author: "FLECS Technologies GmbH <info@flecs.tech>"
+
+inputs:
+  template-owner:
+    description: "GitHub owner of the template repository"
+    type: string
+    required: true
+  template-repo:
+    description: "Name of the template repository"
+    type: string
+    required: true
+  name:
+    description: "Name of the new repository"
+    type: string
+    required: true
+  owner:
+    description: "Owner of the new repository"
+    type: string
+    required: false
+  description:
+    description: "Description of the new repository"
+    type: string
+    required: false
+  include-all-branches:
+    description: "Set to true to copy all branches from the template. If false, only the default branch is copied."
+    type: boolean
+    required: false
+  private:
+    description: "Visibility of the new repository"
+    type: boolean
+    required: false
+
+runs:
+  using: "composite"
+  steps:
+    - name: "Validate inputs"
+      run: |
+        exit_if_empty() {
+          if [ -z "${1}" ]; then
+            echo "Required input ${2} is not set"
+            exit 1
+          fi
+        }
+        exit_if_empty "${{ env.GITHUB_TOKEN }}" "GITHUB_TOKEN"
+        exit_if_empty "${{ inputs.template-owner }}" "template-owner"
+        exit_if_empty "R{{ inputs.template-repo }}" "template-repo"
+        exit_if_empty "R{{ inputs.name }}" "name"
+      shell: bash
+    - name: "Build HTTP route"
+      id: http-route
+      run: |
+        echo "route=POST /repos/${{ inputs.template-owner }}/${{ inputs.template-repo }}/generate" >> "$GITHUB_OUTPUT"
+      shell: bash
+    - name: "Build HTTP body"
+      id: http-body
+      run: |
+        JSON=$(echo "{}" | jq -rc '.name |= "${{ inputs.name}}"')
+        if [ -n "${{ inputs.owner }}" ]; then
+          JSON=$(echo "${JSON}" | jq -rc '.owner |= "${{ inputs.owner}}"')
+        fi
+        if [ -n "${{ inputs.description }}" ]; then
+          JSON=$(echo "${JSON}" | jq -rc '.description |= "${{ inputs.description }}"')
+        fi
+        if [ -n "${{ inputs.private }}" ]; then
+          JSON=$(echo "${JSON}" | jq -rc '.private |= ${{ inputs.private }}')
+        fi
+        if [ -n "${{ inputs.include-all-branches }}" ]; then
+          JSON=$(echo "${JSON}" | jq -rc '.include_all_branches |= ${{ inputs.include-all-branches }}')
+        fi
+        echo "data=${JSON}" >> "$GITHUB_OUTPUT"
+      shell: bash
+    - name: "Unit test"
+      if: env.FLECS_ACTION_UNIT_TEST == 'true'
+      env:
+        FLECS_ACTION_ROUTE: ${{ steps.http-route.outputs.route }}
+        FLECS_ACTION_DATA: ${{ steps.http-body.outputs.data }}
+      run: |
+        echo "FLECS_ACTION_ROUTE=${FLECS_ACTION_ROUTE}" >> "$GITHUB_ENV"
+        echo "FLECS_ACTION_DATA=${FLECS_ACTION_DATA}" >> "$GITHUB_ENV"
+      shell: bash
+    - name: "Create repository"
+      if: env.FLECS_ACTION_UNIT_TEST != 'true'
+      uses: octokit/request-action@v2.x
+      with:
+        route: ${{ steps.http-route.outputs.route }}
+        data: ${{ steps.http-body.outputs.data }}
+      env:
+        GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
