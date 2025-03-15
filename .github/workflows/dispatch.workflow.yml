@@ -1,0 +1,59 @@
+name: "Create a new GitHub repository"
+
+on:
+  workflow_dispatch:
+    inputs:
+      template-owner:
+        description: "GitHub owner of the template repository"
+        type: string
+        required: true
+      template-repo:
+        description: "Name of the template repository"
+        type: string
+        required: true
+      name:
+        description: "Name of the new repository"
+        type: string
+        required: true
+      owner:
+        description: "Owner of the new repository"
+        type: string
+        required: false
+      description:
+        description: "Description of the new repository"
+        type: string
+        required: false
+      include-all-branches:
+        description: "Set to true to copy all branches from the template. If false, only the default branch is copied."
+        type: boolean
+        required: false
+      private:
+        description: "Visibility of the new repository"
+        type: boolean
+        required: false
+
+jobs:
+  create-repository-from-template:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Clone repository"
+        uses: actions/checkout@v4
+      - name: Create GitHub App installation access token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.FLECS_WORKFLOW_AUTOMATION_CLIENT_ID }}
+          private-key: ${{ secrets.FLECS_WORKFLOW_AUTOMATION_KEY }}
+          owner: ${{ github.repository_owner }}
+      - name: "Creating repository ${{ inputs.name }} from template ${{ inputs.template-owner }}/${{ inputs.template-repo }}"
+        uses: ./
+        with:
+          template-owner: ${{ inputs.template-owner }}
+          template-repo: ${{ inputs.template-repo }}
+          name: ${{ inputs.name }}
+          owner: ${{ inputs.owner }}
+          description: ${{ inputs.description }}
+          include-all-branches: ${{ inputs.include-all-branches }}
+          private: ${{ inputs.private }}
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
