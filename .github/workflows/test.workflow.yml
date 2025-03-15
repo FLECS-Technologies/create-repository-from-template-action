@@ -1,0 +1,126 @@
+name: "Test create-repository-from-template-action"
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      FLECS_ACTION_UNIT_TEST: "true"
+      FLECS_ACTION_INPUT_TEMPLATE_OWNER: "some-template-owner"
+      FLECS_ACTION_INPUT_TEMPLATE_REPO: "some-template-repo"
+      FLECS_ACTION_INPUT_NAME: "some-repo"
+      FLECS_ACTION_INPUT_OWNER: "some-owner"
+      FLECS_ACTION_INPUT_DESCRIPTION: "Some description"
+      FLECS_ACTION_INPUT_INCLUDE_ALL_BRANCHES: true
+      FLECS_ACTION_INPUT_PRIVATE: true
+      FLECS_ACTION_ENV_GITHUB_TOKEN: "some-token"
+    steps:
+      - name: "Export variables"
+        id: export-vars
+        run: |
+          echo "input_template_owner=${FLECS_ACTION_INPUT_TEMPLATE_OWNER}" >> "$GITHUB_OUTPUT"
+          echo "input_template_repo=${FLECS_ACTION_INPUT_TEMPLATE_REPO}" >> "$GITHUB_OUTPUT"
+          echo "input_name=${FLECS_ACTION_INPUT_NAME}" >> "$GITHUB_OUTPUT"
+          echo "input_owner=${FLECS_ACTION_INPUT_OWNER}" >> "$GITHUB_OUTPUT"
+          echo "input_description=${FLECS_ACTION_INPUT_DESCRIPTION}" >> "$GITHUB_OUTPUT"
+          echo "input_include_all_branches=${FLECS_ACTION_INPUT_INCLUDE_ALL_BRANCHES}" >> "$GITHUB_OUTPUT"
+          echo "input_private=${FLECS_ACTION_INPUT_PRIVATE}" >> "$GITHUB_OUTPUT"
+
+          echo "env_github_token=${FLECS_ACTION_ENV_GITHUB_TOKEN}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+
+      - name: "TC01: Basic usage"
+        id: tc01
+        uses: ./
+        with:
+          template-owner: ${{ steps.export-vars.outputs.input_template_owner }}
+          template-repo: ${{ steps.export-vars.outputs.input_template_repo }}
+          name: ${{ steps.export-vars.outputs.input_name }}
+        env:
+          GITHUB_TOKEN: ${{ steps.export-vars.outputs.env_github_token }}
+      - name: "TC01: Validate output"
+        env:
+          FLECS_ACTION_ROUTE: ${{ env.FLECS_ACTION_ROUTE }}
+          FLECS_ACTION_DATA: ${{ env.FLECS_ACTION_DATA }}
+        run: |
+          EXPECTED_ROUTE="POST /repos/${FLECS_ACTION_INPUT_TEMPLATE_OWNER}/${FLECS_ACTION_INPUT_TEMPLATE_REPO}/generate"
+          if [ "${FLECS_ACTION_ROUTE}" != "${EXPECTED_ROUTE}" ]; then
+            echo "❌ TC01: ROUTE assertion failed" 1>&2
+            echo "❌ Expected: ${EXPECTED_ROUTE}" 1>&2
+            echo "❌ Got:      ${FLECS_ACTION_ROUTE}" 1>&2
+            exit 1
+          else
+            echo "✅ TC01: ROUTE assertion passed"
+            echo "✅ Expected: ${EXPECTED_ROUTE}"
+            echo "✅ Got:      ${FLECS_ACTION_ROUTE}"
+          fi
+
+          EXPECTED_DATA=$( echo "{\
+            \"name\":\"${FLECS_ACTION_INPUT_NAME}\"\
+          }" | jq -rcS)
+          FLECS_ACTION_DATA=$(echo "${FLECS_ACTION_DATA}" | jq -rcS)
+          if [ "${FLECS_ACTION_DATA}" != "${EXPECTED_DATA}" ]; then
+            echo "❌ TC01: DATA assertion failed" 1>&2
+            echo "❌ Expected: ${EXPECTED_DATA}" 1>&2
+            echo "❌ Got:      ${FLECS_ACTION_DATA}" 1>&2
+            exit 1
+          else
+            echo "✅ TC01: DATA assertion passed"
+            echo "✅ Expected: ${EXPECTED_DATA}"
+            echo "✅ Got:      ${FLECS_ACTION_DATA}"
+          fi
+
+      - name: "TC02: Advanced usage"
+        id: tc02
+        uses: ./
+        with:
+          template-owner: ${{ steps.export-vars.outputs.input_template_owner }}
+          template-repo: ${{ steps.export-vars.outputs.input_template_repo }}
+          name: ${{ steps.export-vars.outputs.input_name }}
+          owner: ${{ steps.export-vars.outputs.input_owner }}
+          description: ${{ steps.export-vars.outputs.input_description }}
+          include-all-branches: ${{ steps.export-vars.outputs.input_include_all_branches }}
+          private: ${{ steps.export-vars.outputs.input_private }}
+        env:
+          GITHUB_TOKEN: ${{ steps.export-vars.outputs.env_github_token }}
+      - name: "TC02: Validate output"
+        env:
+          FLECS_ACTION_ROUTE: ${{ env.FLECS_ACTION_ROUTE }}
+          FLECS_ACTION_DATA: ${{ env.FLECS_ACTION_DATA }}
+        run: |
+          EXPECTED_ROUTE="POST /repos/${FLECS_ACTION_INPUT_TEMPLATE_OWNER}/${FLECS_ACTION_INPUT_TEMPLATE_REPO}/generate"
+          if [ "${FLECS_ACTION_ROUTE}" != "${EXPECTED_ROUTE}" ]; then
+            echo "❌ TC02: ROUTE assertion failed" 1>&2
+            echo "❌ Expected: ${EXPECTED_ROUTE}" 1>&2
+            echo "❌ Got:      ${FLECS_ACTION_ROUTE}" 1>&2
+            exit 1
+          else
+            echo "✅ TC02: ROUTE assertion passed"
+            echo "✅ Expected: ${EXPECTED_ROUTE}"
+            echo "✅ Got:      ${FLECS_ACTION_ROUTE}"
+          fi
+
+          EXPECTED_DATA=$(echo "{\
+            \"owner\":\"${FLECS_ACTION_INPUT_OWNER}\",\
+            \"name\":\"${FLECS_ACTION_INPUT_NAME}\",\
+            \"description\":\"${FLECS_ACTION_INPUT_DESCRIPTION}\",\
+            \"include_all_branches\":${FLECS_ACTION_INPUT_INCLUDE_ALL_BRANCHES},\
+            \"private\":${FLECS_ACTION_INPUT_PRIVATE}\
+          }" | jq -rcS)
+          FLECS_ACTION_DATA=$(echo "${FLECS_ACTION_DATA}" | jq -rcS)
+          if [ "${FLECS_ACTION_DATA}" != "${EXPECTED_DATA}" ]; then
+            echo "❌ TC02: DATA assertion failed" 1>&2
+            echo "❌ Expected: ${EXPECTED_DATA}" 1>&2
+            echo "❌ Got:      ${FLECS_ACTION_DATA}" 1>&2
+            exit 1
+          else
+            echo "✅ TC02: DATA assertion passed"
+            echo "✅ Expected: ${EXPECTED_DATA}"
+            echo "✅ Got:      ${FLECS_ACTION_DATA}"
+          fi
